@@ -1,0 +1,40 @@
+version: "3"
+
+services:
+    mariadb:
+        image: mariadb:10.6
+        restart: unless-stopped
+        command: --character_set_client=utf8 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+        volumes:
+          - ./dolibarr_db:/var/lib/mysql        
+        environment:
+            MYSQL_ROOT_PASSWORD: root
+            MYSQL_DATABASE: dolibarr
+            MYSQL_USER: adminIoTCR
+            MYSQL_PASSWORD: SecretPassword
+            TZ: UTC
+    web:
+        image: tuxgasy/dolibarr
+        environment:
+            DOLI_DB_HOST: mariadb
+            DOLI_DB_NAME: dolibarr            
+            DOLI_DB_USER: adminIoTCR
+            DOLI_DB_PASSWORD: SecretPassword
+            DOLI_URL_ROOT: 'localhost'
+            PHP_INI_DATE_TIMEZONE: 'UTC'  
+            TZ: UTC
+        ports:
+            - "8000:80"
+        links:
+            - mariadb
+    phpmyadmin:
+        image: phpmyadmin
+    
+        restart: always
+        ports:
+           - 3600:80
+        environment:
+           - PMA_ARBITRARY=1
+           - TZ=UTC
+        links:
+           - mariadb             
