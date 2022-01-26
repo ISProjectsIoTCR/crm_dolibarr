@@ -4,13 +4,11 @@ services:
     mariadb:
         image: mariadb:10.6
         restart: unless-stopped
-        command: --character_set_client=utf8 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-        volumes:
-          - ./dolibarr_db:/var/lib/mysql        
+      
         environment:
             MYSQL_ROOT_PASSWORD: root
             MYSQL_DATABASE: dolibarr
-            MYSQL_USER: adminIoTCR
+            MYSQL_USER: admin
             MYSQL_PASSWORD: SecretPassword
             TZ: UTC
     web:
