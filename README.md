@@ -1,12 +1,113 @@
 # Dolibarr application server: Repositorio modificado de la version: https://github.com/upshift-docker/dolibarr
 
-RECOMENDACIÓN: CLONA EL REPOSITORIO, LEVANTA EL DOCKER-COMPOSE, ASEGURATE DE QUE FUNCIONA Y LUEGO MODIFICA AL GUSTO. 
+RECOMENDACIÓN: 
+1-CLONA EL REPOSITORIO.
+2-LEVANTA EL DOCKER-COMPOSE.
+3-ASEGURATE DE QUE FUNCIONA.
+4-LUEGO MODIFICA EL PROYECTO AL GUSTO. 
 
-Docker image for [Dolibarr ERP](https://www.dolibarr.org).
+Docker image para [Dolibarr ERP](https://www.dolibarr.org).
 
-Provides full database configuration, production mode, HTTPS enforcer (SSL must be provided by reverse proxy), handles upgrades, and so on...
 
-## Usage
+# Ejecutando esta imagen con docker-compose
+
+Este ejemplo usará un contenedor MariaDB (también puede usar MySQL o PostgreSQL si lo prefiere). Los volúmenes están configurados para mantener sus datos persistentes. Esta configuración no proporciona cifrado SSL y está diseñada para ejecutarse detrás de un proxy. Incorpora un servicio phpMyAdmin
+
+Crear docker-compose.yml  de la siguiente manera:
+
+```yml
+version: '3'
+
+services:
+
+  mariadb:
+    image: mariadb:10.6
+    container_name: mariadb
+    restart: unless-stopped
+    command: --character_set_client=utf8 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./db_data:/var/lib/mysql    
+
+    environment:
+      - MYSQL_DATABASE=dolibarr
+      - MYSQL_USER=dolibarr
+      - MYSQL_PASSWORD=dolibarr
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+      - TZ=America/Costa_Rica
+
+  dolibarr:
+    image: upshift/dolibarr:14.0
+    container_name: dolibarr
+    restart: unless-stopped
+    depends_on:
+        - mariadb
+    ports:
+        - "8000:80"
+    environment:
+      - DOLI_ADMIN_LOGIN=admin
+      - DOLI_ADMIN_PASSWORD=p4ssw0rd
+      - DOLI_DB_HOST=mariadb
+      - DOLI_DB_NAME=dolibarr
+      - DOLI_DB_USER=dolibarr
+      - DOLI_DB_PASSWORD=dolibarr
+      - TZ=America/Costa_Rica
+      - LANG=es_ES
+    volumes:
+      - ./doli_html:/var/www/html
+      - ./doli_docs:/var/www/documents
+  
+  phpmyadmin:
+    image: phpmyadmin
+    
+    restart: always
+    ports:
+       - 3600:80
+    environment:
+       - PMA_ARBITRARY=1
+       - TZ=America/Costa_Rica
+
+    links:
+        - mariadb
+```
+
+A continuación, ejecute todos los servicios docker-compose up -d. Ahora, vaya a http://localhost:8000/install para acceder al nuevo asistente de instalación de Dolibarr.
+
+# Haga que su Dolibarr esté disponible desde Internet
+
+Hasta aquí, su Dolibarr solo está disponible desde su host docker. Si desea que Dolibarr esté disponible desde Internet, es obligatorio agregar el cifrado SSL. Hay muchas posibilidades diferentes para introducir el cifrado dependiendo de su configuración.
+
+Recomendamos usar un proxy inverso frente a nuestra instalación de Dolibarr. Solo se podrá acceder a su Dolibarr a través del proxy, que encripta todo el tráfico a los clientes. Puede montar sus certificados generados manualmente en el proxy o usar una solución completamente automatizada, que genera y renueva los certificados por usted.
+
+# Primer uso
+
+Cuando accede por primera vez a su Dolibarr, debe acceder al asistente de instalación en http://localhost:8000/install/. Aparecerá el asistente de configuración y le pedirá que elija una cuenta de administrador, una contraseña y la conexión a la base de datos. Para la base de datos, use el nombre de su contenedor de base de datos como host y dolibarrcomo tabla y nombre de usuario. También ingrese la contraseña de la base de datos que eligió en su docker-compose.ymlarchivo.
+
+La mayoría de los campos del asistente se pueden inicializar con las variables de entorno.
+
+Sin embargo, debe tener en cuenta que algunas variables de entorno se ignorarán durante la instalación del asistente ( DOLI_AUTHy DOLI_LDAP_*por ejemplo). El contenedor generó una inicial conf.phpen el primer inicio con las variables de entorno de Dolibarr que configuró a través de Docker. Para usar la configuración generada por el contenedor, puede omitir el primer paso de instalación e ir directamente a http://localhost:8000/install/step2.php .
+
+# Actualizar a una versión más nueva
+
+La actualización del contenedor de Dolibarr se realiza extrayendo la nueva imagen, desechando el contenedor antiguo y comenzando con el nuevo. Dado que todos los datos se almacenan en volúmenes, nada se pierde. La secuencia de comandos de inicio verificará la versión en su volumen y la versión de Docker instalada. Si encuentra una discrepancia, inicia automáticamente el proceso de actualización. No olvide agregar todos los volúmenes a su nuevo contenedor, para que funcione como se esperaba. Además, le recomendamos que no se salte las versiones principales durante la actualización. Por ejemplo, actualice de 5.0 a 6.0, luego de 6.0 a 7.0, no directamente de 5.0 a 7.0.
+
+```console
+$ docker pull upshift/dolibarr
+$ docker stop <your_dolibarr_container>
+$ docker rm <your_dolibarr_container>
+$ docker run <OPTIONS> -d upshift/dolibarr
+```
+
+Tenga en cuenta que debe ejecutar el mismo comando con las opciones que utilizó para iniciar inicialmente su Dolibarr. Eso incluye volúmenes, mapeo de puertos.
+
+Cuando usa docker-compose, su archivo de composición se encarga de su configuración, por lo que solo tiene que ejecutar:
+
+```console
+$ docker-compose pull
+$ docker-compose up -d
+```
+
+
+## DOCKER Usage
 
 This image does not contain the database for Dolibarr. You need to use either an existing database or a database container.
 
@@ -416,83 +517,3 @@ ENV PHP_INI_memory_limit=256M
 ENV PHP_INI_max_execution_time=60
 ```
 
-# Running this image with docker-compose
-
-This example will use the a [MariaDB](https://hub.docker.com/_/mariadb/) container (you can also use [MySQL](https://hub.docker.com/_/mysql/) or [PostgreSQL](https://hub.docker.com/_/postgres/) if you prefer). The volumes are set to keep your data persistent. This setup provides **no ssl encryption** and is intended to run behind a proxy. 
-
-Create `docker-compose.yml` file as following:
-
-```yml
-version: '3'
-
-volumes:
-  dolibarr_html:
-  dolibarr_docs:
-  dolibarr_db:
-
-services:
-
-  mariadb:
-    image: mariadb:latest
-    restart: always
-    command: --character_set_client=utf8 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - dolibarr_db:/var/lib/mysql
-    environment:
-        - "MYSQL_DATABASE=dolibarr"
-        - "MYSQL_USER=dolibarr"
-        - "MYSQL_PASSWORD=dolibarr"
-        - "MYSQL_RANDOM_ROOT_PASSWORD=yes"
-
-  dolibarr:
-    image: upshift/dolibarr:latest
-    restart: always
-    depends_on:
-        - mariadb
-    ports:
-        - "8080:80"
-    environment:
-        - "DOLI_DB_HOST=mariadb"
-        - "DOLI_DB_NAME=dolibarr"
-        - "DOLI_DB_USER=dolibarr"
-        - "DOLI_DB_PASSWORD=dolibarr"
-    volumes:
-        - dolibarr_html:/var/www/html
-        - dolibarr_docs:/var/www/documents
-```
-
-Then run all services `docker-compose up -d`. Now, go to http://localhost:8080/install to access the new Dolibarr installation wizard.
-
-# Make your Dolibarr available from the internet
-
-Until here your Dolibarr is just available from you docker host. If you want you Dolibarr available from the internet adding SSL encryption is mandatory. There are many different possibilities to introduce encryption depending on your setup.
-
-We recommend using a reverse proxy in front of our Dolibarr installation. Your Dolibarr will only be reachable through the proxy, which encrypts all traffic to the clients. You can mount your manually generated certificates to the proxy or use a fully automated solution, which generates and renews the certificates for you.
-
-# First use
-
-When you first access your Dolibarr, you need to access the install wizard at `http://localhost:8080/install/`. The setup wizard will appear and ask you to choose an administrator account, password and the database connection. For the database use the name of your database container as host and `dolibarr` as table and user name. Also enter the database password you chose in your `docker-compose.yml` file.
-
-Most of the fields of the wizard can be initialized with the environment variables.
-
-You should note though that some environment variables will be ignored during install wizard (`DOLI_AUTH` and `DOLI_LDAP_*` for instance). An initial `conf.php` was generated by the container on the first start with the Dolibarr environment variables you set through Docker. To use the container generated configuration, you can skip the first step of install and go directly to http://localhost:8080/install/step2.php.
-
-# Update to a newer version
-
-Updating the Dolibarr container is done by pulling the new image, throwing away the old container and starting the new one. Since all data is stored in volumes, nothing gets lost. The startup script will check for the version in your volume and the installed docker version. If it finds a mismatch, it automatically starts the upgrade process. Don't forget to add all the volumes to your new container, so it works as expected. Also, we advised you do not skip major versions during your upgrade. For instance, upgrade from 5.0 to 6.0, then 6.0 to 7.0, not directly from 5.0 to 7.0.
-
-```console
-$ docker pull upshift/dolibarr
-$ docker stop <your_dolibarr_container>
-$ docker rm <your_dolibarr_container>
-$ docker run <OPTIONS> -d upshift/dolibarr
-```
-
-Beware that you have to run the same command with the options that you used to initially start your Dolibarr. That includes volumes, port mapping.
-
-When using docker-compose your compose file takes care of your configuration, so you just have to run:
-
-```console
-$ docker-compose pull
-$ docker-compose up -d
-```
